@@ -467,6 +467,10 @@ public class BillingProcessor extends BillingBase {
 		return getPurchaseTransactionDetails(productId, cachedSubscriptions);
 	}
 
+	private boolean validatePurchasePayload(String expectedValue, String actualValue) {
+		return TextUtils.isEmpty(expectedValue) || actualValue != null && actualValue.equals(expectedValue);
+	}
+
 	public boolean handleActivityResult(int requestCode, int resultCode, Intent data) {
 		if (requestCode != PURCHASE_FLOW_REQUEST_CODE)
 			return false;
@@ -476,18 +480,16 @@ public class BillingProcessor extends BillingBase {
 		}
 		int responseCode = data.getIntExtra(Constants.RESPONSE_CODE, Constants.BILLING_RESPONSE_RESULT_OK);
 		Log.d(LOG_TAG, String.format("resultCode = %d, responseCode = %d", resultCode, responseCode));
-		String purchasePayload = getPurchasePayload();
-		if (resultCode == Activity.RESULT_OK && responseCode == Constants.BILLING_RESPONSE_RESULT_OK && !TextUtils.isEmpty(purchasePayload)) {
+		if (resultCode == Activity.RESULT_OK && responseCode == Constants.BILLING_RESPONSE_RESULT_OK) {
 			String purchaseData = data.getStringExtra(Constants.INAPP_PURCHASE_DATA);
 			String dataSignature = data.getStringExtra(Constants.RESPONSE_INAPP_SIGNATURE);
 			try {
 				JSONObject purchase = new JSONObject(purchaseData);
 				String productId = purchase.getString(Constants.RESPONSE_PRODUCT_ID);
-				String developerPayload = purchase.getString(Constants.RESPONSE_PAYLOAD);
-				if (developerPayload == null)
-					developerPayload = "";
-				boolean purchasedSubscription = purchasePayload.startsWith(Constants.PRODUCT_TYPE_SUBSCRIPTION);
-				if (purchasePayload.equals(developerPayload)) {
+				String payload = purchase.getString(Constants.RESPONSE_PAYLOAD);
+				String expectedPayload = getPurchasePayload(); // could be empty (promo code flow)
+				boolean purchasedSubscription = !TextUtils.isEmpty(expectedPayload) && expectedPayload.startsWith(Constants.PRODUCT_TYPE_SUBSCRIPTION);
+				if (validatePurchasePayload(expectedPayload, payload)) {
 					if (verifyPurchaseSignature(productId, purchaseData, dataSignature)) {
 						BillingCache cache = purchasedSubscription ? cachedSubscriptions : cachedProducts;
 						cache.put(productId, purchaseData, dataSignature);
@@ -499,10 +501,11 @@ public class BillingProcessor extends BillingBase {
 							eventHandler.onBillingError(Constants.BILLING_ERROR_INVALID_SIGNATURE, null);
 					}
 				} else {
-					Log.e(LOG_TAG, String.format("Payload mismatch: %s != %s", purchasePayload, developerPayload));
+					Log.e(LOG_TAG, String.format("Payload mismatch: %s != %s", expectedPayload, payload));
 					if (eventHandler != null)
 						eventHandler.onBillingError(Constants.BILLING_ERROR_INVALID_SIGNATURE, null);
 				}
+				savePurchasePayload(null); // reset value for future calls
 			} catch (Exception e) {
 				Log.e(LOG_TAG, "Error in handleActivityResult", e);
 				if (eventHandler != null)
