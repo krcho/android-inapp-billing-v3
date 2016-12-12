@@ -25,7 +25,6 @@ import android.widget.Toast;
 
 import com.anjlab.android.iab.v3.BillingProcessor;
 import com.anjlab.android.iab.v3.SkuDetails;
-import com.anjlab.android.iab.v3.TransactionDetails;
 
 public class MainActivity extends Activity {
 	// SAMPLE APP CONSTANTS

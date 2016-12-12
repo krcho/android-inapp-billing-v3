@@ -32,13 +32,11 @@ import android.util.Log;
 
 import com.android.vending.billing.IInAppBillingService;
 
-import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
-import java.util.UUID;
 
 public class BillingProcessor extends BillingBase {
 
@@ -72,18 +70,14 @@ public class BillingProcessor extends BillingBase {
         }
     };
 
-    public BillingProcessor(Context context, String licenseKey, IBillingHandler handler) {
-        this(context, licenseKey, null, handler);
-    }
-
-    public BillingProcessor(Context context, String licenseKey, String merchantId, IBillingHandler handler) {
-        super(context.getApplicationContext());
-        signatureBase64 = licenseKey;
+    public BillingProcessor(Context context, IBillingHandler handler) {
+        super(context);
+        signatureBase64 = Config.LICENSE_KEY;
         eventHandler = handler;
-        contextPackageName = getContext().getPackageName();
-        cachedProducts = new BillingCache(getContext(), MANAGED_PRODUCTS_CACHE_KEY);
-        cachedSubscriptions = new BillingCache(getContext(), SUBSCRIPTIONS_CACHE_KEY);
-        developerMerchantId = merchantId;
+        contextPackageName = context.getApplicationContext().getPackageName();
+        cachedProducts = new BillingCache(context, MANAGED_PRODUCTS_CACHE_KEY);
+        cachedSubscriptions = new BillingCache(context, SUBSCRIPTIONS_CACHE_KEY);
+        developerMerchantId = Config.MERCHANT_ID;
         bindPlayServices();
     }
 
@@ -208,34 +202,36 @@ public class BillingProcessor extends BillingBase {
     /**
      * Change subscription i.e. upgrade or downgrade
      *
-     * @param activity the activity calling this method
+     * @param activity     the activity calling this method
      * @param oldProductId passing null or empty string will act the same as {@link #subscribe(Activity, String)}
-     * @param productId the new subscription id
+     * @param productId    the new subscription id
      * @return {@code false} if {@code oldProductId} is not {@code null} AND change subscription
      * is not supported.
      */
-    public boolean updateSubscription(Activity activity, String oldProductId, String productId) {
+    public boolean updateSubscription(Activity activity, String oldProductId, String productId,
+                                      String developerPayload) {
         List<String> oldProductIds = null;
         if (!TextUtils.isEmpty(oldProductId)) {
             oldProductIds = new ArrayList<>(1);
             oldProductIds.add(oldProductId);
         }
-        return updateSubscription(activity, oldProductIds, productId);
+        return updateSubscription(activity, oldProductIds, productId, developerPayload);
     }
 
     /**
      * Change subscription i.e. upgrade or downgrade
      *
-     * @param activity the activity calling this method
+     * @param activity      the activity calling this method
      * @param oldProductIds passing null will act the same as {@link #subscribe(Activity, String)}
-     * @param productId the new subscription id
+     * @param productId     the new subscription id
      * @return {@code false} if {@code oldProductIds} is not {@code null} AND change subscription
      * is not supported.
      */
-    public boolean updateSubscription(Activity activity, List<String> oldProductIds, String productId) {
+    public boolean updateSubscription(Activity activity, List<String> oldProductIds, String
+            productId, String developerPayload) {
         if (oldProductIds != null && !isSubscriptionUpdateSupported())
             return false;
-        return purchase(activity, oldProductIds, productId, Constants.PRODUCT_TYPE_SUBSCRIPTION, null);
+        return purchase(activity, oldProductIds, productId, Constants.PRODUCT_TYPE_SUBSCRIPTION, developerPayload);
     }
 
     private boolean purchase(Activity activity, String productId, String purchaseType,
@@ -266,7 +262,7 @@ public class BillingProcessor extends BillingBase {
                 } else if (response == Constants.BILLING_RESPONSE_RESULT_ITEM_ALREADY_OWNED) {
                     if (!isPurchased(productId) && !isSubscribed(productId))
                         loadOwnedPurchasesFromGoogle();
-                    TransactionDetails details = getPurchaseTransactionDetails(productId);
+                    PurchaseInfo details = getPurchaseTransactionDetails(productId);
                     if (!checkMerchant(details)) {
                         Log.i(LOG_TAG, "Invalid or tampered merchant id!");
                         if (eventHandler != null)
@@ -295,34 +291,34 @@ public class BillingProcessor extends BillingBase {
      * real merchant id, unless publisher GoogleId was hacked
      * If merchantId was not supplied function checks nothing
      *
-     * @param details TransactionDetails
+     * @param purchaseInfo PurchaseInfo
      * @return boolean
      */
-    private boolean checkMerchant(TransactionDetails details) {
+    private boolean checkMerchant(PurchaseInfo purchaseInfo) {
         if (developerMerchantId == null) //omit merchant id checking
             return true;
-        if (details.purchaseTime.before(DATE_MERCHANT_LIMIT_1)) //new format [merchantId].[orderId] applied or not?
+        if (purchaseInfo.purchaseData.purchaseTime.before(DATE_MERCHANT_LIMIT_1)) //new
+            // format
+            // [merchantId]
+            // .[orderId] applied or not?
             return true;
-        if (details.purchaseTime.after(DATE_MERCHANT_LIMIT_2)) //newest format applied
+        if (purchaseInfo.purchaseData.purchaseTime.after(DATE_MERCHANT_LIMIT_2)) //newest format applied
             return true;
-        if (details.orderId == null || details.orderId.trim().length() == 0)
+        if (purchaseInfo.purchaseData.orderId == null || purchaseInfo.purchaseData.orderId.trim().length()
+                == 0)
             return false;
-        int index = details.orderId.indexOf('.');
+        int index = purchaseInfo.purchaseData.orderId.indexOf('.');
         if (index <= 0)
             return false; //protect on missing merchant id
         //extract merchant id
-        String merchantId = details.orderId.substring(0, index);
+        String merchantId = purchaseInfo.purchaseData.orderId.substring(0, index);
         return merchantId.compareTo(developerMerchantId) == 0;
     }
 
-    private TransactionDetails getPurchaseTransactionDetails(String productId, BillingCache cache) {
+    private PurchaseInfo getPurchaseTransactionDetails(String productId, BillingCache cache) {
         PurchaseInfo details = cache.getDetails(productId);
         if (details != null && !TextUtils.isEmpty(details.responseData)) {
-            try {
-                return new TransactionDetails(details);
-            } catch (JSONException e) {
-                Log.e(LOG_TAG, "Failed to load saved purchase details for " + productId, e);
-            }
+            return details;
         }
         return null;
     }
@@ -371,7 +367,7 @@ public class BillingProcessor extends BillingBase {
                 int response = skuDetails.getInt(Constants.RESPONSE_CODE);
 
                 if (response == Constants.BILLING_RESPONSE_RESULT_OK) {
-                    ArrayList<SkuDetails> productDetails = new ArrayList<SkuDetails>();
+                    ArrayList<SkuDetails> productDetails = new ArrayList<>();
                     List<String> detailsList = skuDetails.getStringArrayList(Constants.DETAILS_LIST);
                     if (detailsList != null)
                         for (String responseLine : detailsList) {
@@ -411,11 +407,11 @@ public class BillingProcessor extends BillingBase {
         return getSkuDetails(productIdList, Constants.PRODUCT_TYPE_SUBSCRIPTION);
     }
 
-    public TransactionDetails getPurchaseTransactionDetails(String productId) {
+    public PurchaseInfo getPurchaseTransactionDetails(String productId) {
         return getPurchaseTransactionDetails(productId, cachedProducts);
     }
 
-    public TransactionDetails getSubscriptionTransactionDetails(String productId) {
+    public PurchaseInfo getSubscriptionTransactionDetails(String productId) {
         return getPurchaseTransactionDetails(productId, cachedSubscriptions);
     }
 
@@ -444,7 +440,7 @@ public class BillingProcessor extends BillingBase {
                         BillingCache cache = purchasedSubscription ? cachedSubscriptions : cachedProducts;
                         cache.put(productId, purchaseData, dataSignature);
                         if (eventHandler != null)
-                            eventHandler.onProductPurchased(productId, new TransactionDetails(new PurchaseInfo(purchaseData, dataSignature)));
+                            eventHandler.onProductPurchased(productId, new PurchaseInfo(purchaseData, dataSignature));
                     } else {
                         Log.e(LOG_TAG, "Public key signature doesn't match!");
                         if (eventHandler != null)
@@ -479,11 +475,11 @@ public class BillingProcessor extends BillingBase {
         }
     }
 
-    public boolean isValidTransactionDetails(TransactionDetails transactionDetails) {
-        return verifyPurchaseSignature(transactionDetails.productId,
-                transactionDetails.purchaseInfo.responseData,
-                transactionDetails.purchaseInfo.signature) &&
-                checkMerchant(transactionDetails);
+    public boolean isValidTransactionDetails(PurchaseInfo purchaseInfo) {
+        return verifyPurchaseSignature(purchaseInfo.purchaseData.productId,
+                purchaseInfo.responseData,
+                purchaseInfo.signature) &&
+                checkMerchant(purchaseInfo);
     }
 
     private boolean isPurchaseHistoryRestored() {
@@ -507,7 +503,7 @@ public class BillingProcessor extends BillingBase {
      * Apps must implement one of these to construct a BillingProcessor.
      */
     public interface IBillingHandler {
-        void onProductPurchased(String productId, TransactionDetails details);
+        void onProductPurchased(String productId, PurchaseInfo info);
 
         void onPurchaseHistoryRestored();
 
