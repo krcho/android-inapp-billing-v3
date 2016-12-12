@@ -7,7 +7,7 @@ version '1.0.36'
 
 android {
     compileSdkVersion 23
-    buildToolsVersion '23.0.2'
+    buildToolsVersion '23.0.3'
 
     defaultConfig {
         versionCode 1
@@ -77,10 +77,6 @@ uploadArchives {
     configuration = configurations.archives
     repositories.mavenDeployer {
         beforeDeployment { MavenDeployment deployment -> signing.signPom(deployment) }
-
-        repository(url: sonatypeRepo) {
-            authentication(userName: sonatypeUsername, password: sonatypePassword)
-        }
 
         pom.project {
             name 'Android In-App Billing v3 Library'
