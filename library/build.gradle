@@ -1,9 +1,10 @@
 apply plugin: 'com.android.library'
 apply plugin: 'maven'
 apply plugin: 'signing'
+apply plugin: 'checkstyle'
 
 group 'com.anjlab.android.iab.v3'
-version '1.0.33'
+version '1.0.44'
 
 android {
     compileSdkVersion 25
@@ -14,13 +15,33 @@ android {
         versionName project.version
         minSdkVersion 8
         targetSdkVersion 24
+        consumerProguardFiles 'progress-proguard.txt'
+        testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
     }
+
+    testOptions.unitTests {
+        // Don't throw runtime exceptions for android calls that are not mocked
+        returnDefaultValues = true
+
+        // Always show the result of every unit test, even if it passes.
+        all {
+            testLogging {
+                events 'passed', 'skipped', 'failed', 'standardOut', 'standardError'
+            }
+        }
+    }
+}
+
+dependencies {
+    androidTestCompile 'com.android.support.test:runner:0.5'
+    androidTestCompile 'com.android.support.test:rules:0.5'
+    compile 'com.android.support:support-annotations:25.3.1'
 }
 
 configurations.archives.extendsFrom configurations.default
 
 signing {
-    required { has("release") && gradle.taskGraph.hasTask("uploadArchives") }
+    required { gradle.taskGraph.hasTask("uploadArchives") }
     sign configurations.archives
 }
 
@@ -48,6 +69,12 @@ uploadArchives {
     configuration = configurations.archives
     repositories.mavenDeployer {
         beforeDeployment { MavenDeployment deployment -> signing.signPom(deployment) }
+
+        if (project.hasProperty('sonatypeRepo')) {
+            repository(url: sonatypeRepo) {
+                authentication(userName: sonatypeUsername, password: sonatypePassword)
+            }
+        }
 
         pom.project {
             name 'Android In-App Billing v3 Library'
@@ -80,6 +107,18 @@ uploadArchives {
     }
 }
 
+task checkstyle(type: Checkstyle) {
+    configFile file("${project.rootDir}/checkstyle.xml")
+    source 'src'
+    include '**/*.java'
+    exclude '**/gen/**'
+
+    classpath = files()
+}
+
+check.dependsOn('checkstyle')
+connectedCheck.dependsOn('checkstyle')
+
 android.libraryVariants.all { variant ->
     def name = variant.buildType.name
     if (name.equals('com.android.builder.BuilderConstants.DEBUG')) {
@@ -89,7 +128,7 @@ android.libraryVariants.all { variant ->
     task.dependsOn variant.javaCompile
     task.from variant.javaCompile.destinationDir
     task.baseName 'anjlab-iabv3'
-    task.doLast{
+    task.doLast {
         println "Copying jar to sample project..."
         copy {
             from task.archivePath
