@@ -100,8 +100,8 @@ public class PurchaseInfo implements Parcelable
         this.purchaseData = parseResponseDataImpl();
     }
 
-    public static final Parcelable.Creator<PurchaseInfo> CREATOR =
-            new Parcelable.Creator<PurchaseInfo>()
+    public static final Creator<PurchaseInfo> CREATOR =
+            new Creator<PurchaseInfo>()
             {
                 public PurchaseInfo createFromParcel(Parcel source)
                 {

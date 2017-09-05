@@ -114,8 +114,8 @@ public class TransactionDetails implements Parcelable
 		this.purchaseTime = purchaseInfo.purchaseData.purchaseTime;
 	}
 
-	public static final Parcelable.Creator<TransactionDetails> CREATOR =
-			new Parcelable.Creator<TransactionDetails>()
+	public static final Creator<TransactionDetails> CREATOR =
+			new Creator<TransactionDetails>()
 			{
 				public TransactionDetails createFromParcel(Parcel source)
 				{

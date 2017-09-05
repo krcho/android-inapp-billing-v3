@@ -41,7 +41,6 @@ import java.util.Calendar;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
-import java.util.UUID;
 
 public class BillingProcessor extends BillingBase
 {
@@ -153,9 +152,13 @@ public class BillingProcessor extends BillingBase
 	 * this factory, then you must call {@link #initialize()} afterwards.
 	 */
 	public static BillingProcessor newBillingProcessor(Context context, String licenseKey, String merchantId,
-													   IBillingHandler handler)
+                                                       IBillingHandler handler)
 	{
 		return new BillingProcessor(context, licenseKey, merchantId, handler, false);
+	}
+
+	public BillingProcessor(Context context, IBillingHandler handler) {
+		this(context, Config.LICENSE_KEY, Config.MERCHANT_ID, handler, true);
 	}
 
 	public BillingProcessor(Context context, String licenseKey, IBillingHandler handler)
@@ -607,15 +610,7 @@ public class BillingProcessor extends BillingBase
 		}
 		try
 		{
-			String purchasePayload = purchaseType + ":" + productId;
-			if (!purchaseType.equals(Constants.PRODUCT_TYPE_SUBSCRIPTION))
-			{
-				purchasePayload += ":" + UUID.randomUUID().toString();
-			}
-			if (developerPayload != null)
-			{
-				purchasePayload += ":" + developerPayload;
-			}
+			String purchasePayload = developerPayload;
 			savePurchasePayload(purchasePayload);
 			Bundle bundle;
 			if (oldProductIds != null && purchaseType.equals(Constants.PRODUCT_TYPE_SUBSCRIPTION))
@@ -1015,5 +1010,9 @@ public class BillingProcessor extends BillingBase
 		{
 			eventHandler.onBillingError(errorCode, error);
 		}
+	}
+
+	public void checkPurchaseHistory() {
+		new HistoryInitializationTask().execute();
 	}
 }

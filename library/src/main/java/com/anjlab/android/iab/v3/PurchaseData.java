@@ -69,8 +69,8 @@ public class PurchaseData implements Parcelable
         this.autoRenewing = in.readByte() != 0;
     }
 
-    public static final Parcelable.Creator<PurchaseData> CREATOR =
-            new Parcelable.Creator<PurchaseData>()
+    public static final Creator<PurchaseData> CREATOR =
+            new Creator<PurchaseData>()
             {
                 public PurchaseData createFromParcel(Parcel source)
                 {

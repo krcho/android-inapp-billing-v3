@@ -184,8 +184,8 @@ public class SkuDetails implements Parcelable
         this.introductoryPriceCycles = in.readInt();
     }
 
-    public static final Parcelable.Creator<SkuDetails> CREATOR =
-            new Parcelable.Creator<SkuDetails>()
+    public static final Creator<SkuDetails> CREATOR =
+            new Creator<SkuDetails>()
             {
                 public SkuDetails createFromParcel(Parcel source)
                 {
