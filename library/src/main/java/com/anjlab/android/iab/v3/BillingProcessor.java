@@ -57,6 +57,7 @@ public class BillingProcessor extends BillingBase {
     private IBillingHandler eventHandler;
     private String developerMerchantId;
     private boolean isSubsUpdateSupported;
+    private HistoryInitializationTask historyInitializationTask;
     private ServiceConnection serviceConnection = new ServiceConnection() {
         @Override
         public void onServiceDisconnected(ComponentName name) {
@@ -66,7 +67,7 @@ public class BillingProcessor extends BillingBase {
         @Override
         public void onServiceConnected(ComponentName name, IBinder service) {
             billingService = IInAppBillingService.Stub.asInterface(service);
-            new HistoryInitializationTask().execute();
+            checkPurchaseHistory();
         }
     };
 
@@ -104,7 +105,7 @@ public class BillingProcessor extends BillingBase {
     }
 
     public void release() {
-        if (isInitialized() && serviceConnection != null) {
+        if (serviceConnection != null) {
             try {
                 getContext().unbindService(serviceConnection);
             } catch (Exception e) {
@@ -244,6 +245,7 @@ public class BillingProcessor extends BillingBase {
         if (!isInitialized() || TextUtils.isEmpty(productId) || TextUtils.isEmpty(purchaseType))
             return false;
         try {
+            setPurchaseHistoryTODORestore();
             savePurchasePayload(developerPayload);
             Bundle bundle;
             if (oldProductIds != null && purchaseType.equals(Constants.PRODUCT_TYPE_SUBSCRIPTION))
@@ -490,12 +492,23 @@ public class BillingProcessor extends BillingBase {
         saveBoolean(getPreferencesBaseKey() + RESTORE_KEY, true);
     }
 
+    public void setPurchaseHistoryTODORestore() {
+        saveBoolean(getPreferencesBaseKey() + RESTORE_KEY, false);
+    }
+
     private void savePurchasePayload(String value) {
         saveString(getPreferencesBaseKey() + PURCHASE_PAYLOAD_CACHE_KEY, value);
     }
 
     private String getPurchasePayload() {
         return loadString(getPreferencesBaseKey() + PURCHASE_PAYLOAD_CACHE_KEY, null);
+    }
+
+    public void checkPurchaseHistory(){
+        if (historyInitializationTask == null) {
+            historyInitializationTask = new HistoryInitializationTask();
+            historyInitializationTask.execute();
+        }
     }
 
     /**
@@ -529,8 +542,12 @@ public class BillingProcessor extends BillingBase {
                 if (eventHandler != null)
                     eventHandler.onPurchaseHistoryRestored();
             }
-            if (eventHandler != null)
+
+            if (eventHandler != null) {
                 eventHandler.onBillingInitialized();
+            }
+
+            historyInitializationTask = null;
         }
     }
 }
